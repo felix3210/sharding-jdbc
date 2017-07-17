@@ -19,8 +19,9 @@ package com.dangdang.ddframe.rdb.integrate.dbtbl.dynamic.statement;
 
 import com.dangdang.ddframe.rdb.integrate.dbtbl.common.statement.AbstractShardingBothForStatementWithDMLTest;
 import com.dangdang.ddframe.rdb.integrate.dbtbl.dynamic.DynamicShardingBothHelper;
-import com.dangdang.ddframe.rdb.sharding.jdbc.ShardingDataSource;
+import com.dangdang.ddframe.rdb.sharding.jdbc.core.datasource.ShardingDataSource;
 import org.dbunit.DatabaseUnitException;
+import org.junit.AfterClass;
 import org.junit.Test;
 
 import java.sql.Connection;
@@ -29,26 +30,35 @@ import java.sql.Statement;
 
 public final class DynamicShardingBothForStatementWithDMLTest extends AbstractShardingBothForStatementWithDMLTest {
     
+    private static ShardingDataSource shardingDataSource;
+    
     @Override
     protected ShardingDataSource getShardingDataSource() {
-        return DynamicShardingBothHelper.getShardingDataSource(createDataSourceMap("dataSource_%s"));
+        if (null != shardingDataSource) {
+            return shardingDataSource;
+        }
+        shardingDataSource = DynamicShardingBothHelper.getShardingDataSource(createDataSourceMap("dataSource_%s"));
+        return shardingDataSource;
+    }
+    
+    @AfterClass
+    public static void clear() {
+        shardingDataSource.close();
     }
     
     @Test(expected = IllegalStateException.class)
     public void assertUpdateWithoutShardingValue() throws SQLException, DatabaseUnitException {
-        String sql = "UPDATE `t_order` SET `status` = '%s' WHERE `status` = '%s'";
         try (Connection connection = getShardingDataSource().getConnection()) {
-            Statement stmt = connection.prepareStatement(sql);
-            stmt.executeUpdate(String.format(sql, "updated", "init"));
+            Statement stmt = connection.createStatement();
+            stmt.executeUpdate(String.format(getDatabaseTestSQL().getUpdateWithoutShardingValueSql(), "updated", "init"));
         }
     }
     
     @Test(expected = IllegalStateException.class)
     public void assertDeleteWithoutShardingValue() throws SQLException, DatabaseUnitException {
-        String sql = "DELETE `t_order` WHERE `status` = '%s'";
         try (Connection connection = getShardingDataSource().getConnection()) {
-            Statement stmt = connection.prepareStatement(sql);
-            stmt.executeUpdate(String.format(sql, "init"));
+            Statement stmt = connection.createStatement();
+            stmt.executeUpdate(String.format(getDatabaseTestSQL().getDeleteWithoutShardingValueSql(), "init"));
         }
     }
 }

@@ -19,17 +19,29 @@ package com.dangdang.ddframe.rdb.integrate.dbtbl.dynamic.statement;
 
 import com.dangdang.ddframe.rdb.integrate.dbtbl.common.statement.AbstractShardingBothForStatementWithSelectTest;
 import com.dangdang.ddframe.rdb.integrate.dbtbl.dynamic.DynamicShardingBothHelper;
-import com.dangdang.ddframe.rdb.sharding.jdbc.ShardingDataSource;
+import com.dangdang.ddframe.rdb.sharding.jdbc.core.datasource.ShardingDataSource;
 import org.dbunit.DatabaseUnitException;
+import org.junit.AfterClass;
 import org.junit.Test;
 
 import java.sql.SQLException;
 
 public final class DynamicShardingBothForStatementWithSelectTest extends AbstractShardingBothForStatementWithSelectTest {
     
+    private static ShardingDataSource shardingDataSource;
+    
     @Override
     protected ShardingDataSource getShardingDataSource() {
-        return DynamicShardingBothHelper.getShardingDataSource(createDataSourceMap("dataSource_%s"));
+        if (null != shardingDataSource) {
+            return shardingDataSource;
+        }
+        shardingDataSource = DynamicShardingBothHelper.getShardingDataSource(createDataSourceMap("dataSource_%s"));
+        return shardingDataSource;
+    }
+    
+    @AfterClass
+    public static void clear() {
+        shardingDataSource.close();
     }
     
     @Test(expected = UnsupportedOperationException.class)

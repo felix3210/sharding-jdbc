@@ -17,13 +17,16 @@
 
 package com.dangdang.ddframe.rdb.sharding.spring.namespace.parser;
 
+import com.dangdang.ddframe.rdb.sharding.config.common.api.config.GenerateKeyColumnConfig;
 import com.dangdang.ddframe.rdb.sharding.config.common.api.config.BindingTableRuleConfig;
 import com.dangdang.ddframe.rdb.sharding.config.common.api.config.ShardingRuleConfig;
 import com.dangdang.ddframe.rdb.sharding.config.common.api.config.TableRuleConfig;
 import com.dangdang.ddframe.rdb.sharding.spring.datasource.SpringShardingDataSource;
 import com.dangdang.ddframe.rdb.sharding.spring.namespace.constants.ShardingJdbcDataSourceBeanDefinitionParserTag;
+import com.google.common.base.Function;
 import com.google.common.base.Splitter;
 import com.google.common.base.Strings;
+import com.google.common.collect.Lists;
 import org.springframework.beans.factory.config.BeanDefinition;
 import org.springframework.beans.factory.support.AbstractBeanDefinition;
 import org.springframework.beans.factory.support.BeanDefinitionBuilder;
@@ -53,6 +56,7 @@ public class ShardingJdbcDataSourceBeanDefinitionParser extends AbstractBeanDefi
         BeanDefinitionBuilder factory = BeanDefinitionBuilder.rootBeanDefinition(SpringShardingDataSource.class);
         factory.addConstructorArgValue(parseShardingRuleConfig(element, parserContext));
         factory.addConstructorArgValue(parseProperties(element, parserContext));
+        factory.setDestroyMethodName("close");
         return factory.getBeanDefinition();
     }
     
@@ -65,7 +69,15 @@ public class ShardingJdbcDataSourceBeanDefinitionParser extends AbstractBeanDefi
         factory.addPropertyValue("bindingTables", parseBindingTablesConfig(shardingRuleElement));
         factory.addPropertyValue("defaultDatabaseStrategy", parseDefaultDatabaseStrategyConfig(shardingRuleElement));
         factory.addPropertyValue("defaultTableStrategy", parseDefaultTableStrategyConfig(shardingRuleElement));
+        parseKeyGenerator(factory, shardingRuleElement);
         return factory.getBeanDefinition();
+    }
+    
+    private void parseKeyGenerator(final BeanDefinitionBuilder factory, final Element element) {
+        String keyGeneratorClass = element.getAttribute(ShardingJdbcDataSourceBeanDefinitionParserTag.KEY_GENERATOR_CLASS);
+        if (!Strings.isNullOrEmpty(keyGeneratorClass)) {
+            factory.addPropertyValue("keyGeneratorClass", keyGeneratorClass);
+        }
     }
     
     private Map<String, BeanDefinition> parseDataSources(final Element element, final ParserContext parserContext) {
@@ -116,6 +128,19 @@ public class ShardingJdbcDataSourceBeanDefinitionParser extends AbstractBeanDefi
         if (!Strings.isNullOrEmpty(tableStrategy)) {
             factory.addPropertyReference("tableStrategy", tableStrategy);
         }
+        List<Element> generateKeyColumns = DomUtils.getChildElementsByTagName(tableElement, ShardingJdbcDataSourceBeanDefinitionParserTag.GENERATE_KEY_COLUMN);
+        if (null == generateKeyColumns || generateKeyColumns.isEmpty()) {
+            return factory.getBeanDefinition();
+        }
+        factory.addPropertyValue("generateKeyColumns", Lists.transform(generateKeyColumns, new Function<Element, GenerateKeyColumnConfig>() {
+            @Override
+            public GenerateKeyColumnConfig apply(final Element input) {
+                GenerateKeyColumnConfig result = new GenerateKeyColumnConfig();
+                result.setColumnName(input.getAttribute(ShardingJdbcDataSourceBeanDefinitionParserTag.COLUMN_NAME));
+                result.setColumnKeyGeneratorClass(input.getAttribute(ShardingJdbcDataSourceBeanDefinitionParserTag.COLUMN_KEY_GENERATOR_CLASS));
+                return result;
+            }
+        }));
         return factory.getBeanDefinition();
     }
     

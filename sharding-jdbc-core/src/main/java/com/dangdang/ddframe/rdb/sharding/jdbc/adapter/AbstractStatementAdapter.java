@@ -20,11 +20,11 @@ package com.dangdang.ddframe.rdb.sharding.jdbc.adapter;
 import com.dangdang.ddframe.rdb.sharding.jdbc.unsupported.AbstractUnsupportedOperationStatement;
 import lombok.RequiredArgsConstructor;
 
-import java.sql.ResultSet;
 import java.sql.SQLException;
 import java.sql.SQLWarning;
 import java.sql.Statement;
 import java.util.Collection;
+import java.util.LinkedList;
 
 /**
  * 静态语句对象适配类.
@@ -43,12 +43,19 @@ public abstract class AbstractStatementAdapter extends AbstractUnsupportedOperat
     private int fetchSize;
     
     @Override
+    @SuppressWarnings("unchecked")
     public final void close() throws SQLException {
-        for (Statement each : getRoutedStatements()) {
-            each.close();
-        }
         closed = true;
         getRoutedStatements().clear();
+        Collection<SQLException> exceptions = new LinkedList<>();
+        for (Statement each : getRoutedStatements()) {
+            try {
+                each.close();
+            } catch (final SQLException ex) {
+                exceptions.add(ex);
+            }
+        }
+        throwSQLExceptionIfNecessary(exceptions);
     }
     
     @Override
@@ -121,11 +128,18 @@ public abstract class AbstractStatementAdapter extends AbstractUnsupportedOperat
     
     @Override
     public final int getUpdateCount() throws SQLException {
-        int result = 0;
+        long result = 0;
+        boolean hasResult = false;
         for (Statement each : getRoutedStatements()) {
+            if (each.getUpdateCount() > -1) {
+                hasResult = true;
+            }
             result += each.getUpdateCount();
         }
-        return result;
+        if (result > Integer.MAX_VALUE) {
+            result = Integer.MAX_VALUE;
+        }
+        return hasResult ? Long.valueOf(result).intValue() : -1;
     }
     
     @Override
@@ -199,19 +213,10 @@ public abstract class AbstractStatementAdapter extends AbstractUnsupportedOperat
         }
     }
     
-    @Override
-    public final ResultSet getGeneratedKeys() throws SQLException {
-        if (1 == getRoutedStatements().size()) {
-            return getRoutedStatements().iterator().next().getGeneratedKeys();
-        }
-        throw new IllegalStateException("Cannot call getGeneratedKeys if sharding statements more than 1.");
-    }
-    
     /**
      * 获取路由的静态语句对象集合.
      * 
      * @return 路由的静态语句对象集合
-     * @throws SQLException
      */
-    protected abstract Collection<? extends Statement> getRoutedStatements() throws SQLException;
+    protected abstract Collection<? extends Statement> getRoutedStatements();
 }

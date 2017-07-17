@@ -26,7 +26,8 @@ import com.dangdang.ddframe.rdb.sharding.api.rule.TableRule;
 import com.dangdang.ddframe.rdb.sharding.api.strategy.database.DatabaseShardingStrategy;
 import com.dangdang.ddframe.rdb.sharding.api.strategy.table.NoneTableShardingAlgorithm;
 import com.dangdang.ddframe.rdb.sharding.api.strategy.table.TableShardingStrategy;
-import com.dangdang.ddframe.rdb.sharding.jdbc.ShardingDataSource;
+import com.dangdang.ddframe.rdb.sharding.jdbc.core.datasource.ShardingDataSource;
+import org.junit.AfterClass;
 
 import java.util.Arrays;
 import java.util.Collections;
@@ -34,22 +35,9 @@ import java.util.List;
 
 public abstract class AbstractShardingNullableDBUnitTest extends AbstractDBUnitTest {
     
-    private final String dataSourceName = "dataSource_%s";
+    private static boolean isShutdown;
     
-    @Override
-    protected List<String> getSchemaFiles() {
-        return Arrays.asList(
-                "integrate/schema/nullable/nullable_0.sql",
-                "integrate/schema/nullable/nullable_1.sql",
-                "integrate/schema/nullable/nullable_2.sql",
-                "integrate/schema/nullable/nullable_3.sql",
-                "integrate/schema/nullable/nullable_4.sql",
-                "integrate/schema/nullable/nullable_5.sql",
-                "integrate/schema/nullable/nullable_6.sql",
-                "integrate/schema/nullable/nullable_7.sql",
-                "integrate/schema/nullable/nullable_8.sql",
-                "integrate/schema/nullable/nullable_9.sql");
-    }
+    private static ShardingDataSource shardingDataSource;
     
     @Override
     protected List<String> getDataSetFiles() {
@@ -67,13 +55,25 @@ public abstract class AbstractShardingNullableDBUnitTest extends AbstractDBUnitT
     }
     
     protected final ShardingDataSource getShardingDataSource() {
-        DataSourceRule dataSourceRule = new DataSourceRule(createDataSourceMap(dataSourceName));
+        if (null != shardingDataSource && !isShutdown) {
+            return shardingDataSource;
+        }
+        isShutdown = false;
+        DataSourceRule dataSourceRule = new DataSourceRule(createDataSourceMap("dataSource_%s"));
         
         TableRule orderTableRule = TableRule.builder("t_order").dataSourceRule(dataSourceRule).build();
         ShardingRule shardingRule = ShardingRule.builder().dataSourceRule(dataSourceRule).tableRules(Collections.singletonList(orderTableRule))
                 .bindingTableRules(Collections.singletonList(new BindingTableRule(Collections.singletonList(orderTableRule))))
                 .databaseShardingStrategy(new DatabaseShardingStrategy(Collections.singletonList("user_id"), new MultipleKeysModuloDatabaseShardingAlgorithm()))
                 .tableShardingStrategy(new TableShardingStrategy(Collections.singletonList("order_id"), new NoneTableShardingAlgorithm())).build();
-        return new ShardingDataSource(shardingRule);
+        shardingDataSource = new ShardingDataSource(shardingRule);
+        return shardingDataSource;
+    }
+    
+    
+    @AfterClass
+    public static void clear() {
+        isShutdown = true;
+        shardingDataSource.close();
     }
 }

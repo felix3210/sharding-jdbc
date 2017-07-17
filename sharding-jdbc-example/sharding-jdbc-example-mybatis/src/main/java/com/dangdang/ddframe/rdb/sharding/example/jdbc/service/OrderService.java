@@ -17,13 +17,14 @@
 
 package com.dangdang.ddframe.rdb.sharding.example.jdbc.service;
 
-import javax.annotation.Resource;
-
 import com.dangdang.ddframe.rdb.sharding.example.jdbc.entity.Order;
 import com.dangdang.ddframe.rdb.sharding.example.jdbc.repository.OrderRepository;
+import com.google.common.base.Joiner;
 import com.google.common.collect.Lists;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+
+import javax.annotation.Resource;
 
 /**
  * Order 服务对象.
@@ -39,7 +40,7 @@ public class OrderService {
     
     @Transactional(readOnly = true)
     public void select() {
-        System.out.println(orderRepository.selectAll());
+        System.out.println("{" + Joiner.on(" | ").join(orderRepository.selectAll()) + "}");
     }
     
     public void clear() {
@@ -49,13 +50,13 @@ public class OrderService {
     public void fooService() {
         Order criteria = new Order();
         criteria.setUserId(10);
-        criteria.setOrderId(1);
         criteria.setStatus("INSERT");
         orderRepository.insert(criteria);
+        System.out.println("Generated key1 of order_id:" + criteria.getOrderId());
         criteria.setUserId(11);
-        criteria.setOrderId(1);
         criteria.setStatus("INSERT2");
         orderRepository.insert(criteria);
+        System.out.println("Generated key2 of order_id:" + criteria.getOrderId());
         orderRepository.update(Lists.newArrayList(10, 11));
     }
     

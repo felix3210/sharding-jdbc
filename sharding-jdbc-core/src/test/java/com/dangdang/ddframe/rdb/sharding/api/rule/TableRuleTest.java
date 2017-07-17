@@ -21,7 +21,9 @@ import com.dangdang.ddframe.rdb.sharding.api.strategy.database.DatabaseShardingS
 import com.dangdang.ddframe.rdb.sharding.api.strategy.database.NoneDatabaseShardingAlgorithm;
 import com.dangdang.ddframe.rdb.sharding.api.strategy.table.NoneTableShardingAlgorithm;
 import com.dangdang.ddframe.rdb.sharding.api.strategy.table.TableShardingStrategy;
+import com.dangdang.ddframe.rdb.sharding.keygen.fixture.IncrementKeyGenerator;
 import com.google.common.collect.Sets;
+import org.junit.Ignore;
 import org.junit.Test;
 
 import javax.sql.DataSource;
@@ -32,6 +34,7 @@ import java.util.HashMap;
 import java.util.Map;
 
 import static org.hamcrest.CoreMatchers.is;
+import static org.hamcrest.core.IsInstanceOf.instanceOf;
 import static org.junit.Assert.assertNotNull;
 import static org.junit.Assert.assertNull;
 import static org.junit.Assert.assertThat;
@@ -184,6 +187,7 @@ public final class TableRuleTest {
     }
     
     @Test
+    @Ignore
     public void assertToString() {
         TableRule actual = TableRule.builder("logicTable")
                 .actualTables(Arrays.asList("ds0.table_0", "ds0.table_1", "ds0.table_2", "ds1.table_0", "ds1.table_1", "ds1.table_2")).build();
@@ -194,7 +198,15 @@ public final class TableRuleTest {
                 + "DataNode(dataSourceName=ds1, tableName=table_0), "
                 + "DataNode(dataSourceName=ds1, tableName=table_1), "
                 + "DataNode(dataSourceName=ds1, tableName=table_2)], "
-                + "databaseShardingStrategy=null, tableShardingStrategy=null)"));
+                + "databaseShardingStrategy=null, tableShardingStrategy=null, "
+                + "generateKeyColumnsMap={})"));
+    }
+    
+    @Test
+    public void assertGenerateKeyColumn() {
+        TableRule actual = TableRule.builder("logicTable").dataSourceRule(createDataSourceRule()).generateKeyColumn("col_1", IncrementKeyGenerator.class).build();
+        assertThat(actual.getGenerateKeyColumn(), is("col_1"));
+        assertThat(actual.getKeyGenerator(), instanceOf(IncrementKeyGenerator.class));
     }
     
     private DataSourceRule createDataSourceRule() {

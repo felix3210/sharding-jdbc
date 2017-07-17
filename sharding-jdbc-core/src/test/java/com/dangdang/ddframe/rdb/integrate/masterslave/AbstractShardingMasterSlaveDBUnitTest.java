@@ -27,9 +27,10 @@ import com.dangdang.ddframe.rdb.sharding.api.rule.TableRule;
 import com.dangdang.ddframe.rdb.sharding.api.strategy.database.DatabaseShardingStrategy;
 import com.dangdang.ddframe.rdb.sharding.api.strategy.table.TableShardingStrategy;
 import com.dangdang.ddframe.rdb.sharding.hint.HintManagerHolder;
-import com.dangdang.ddframe.rdb.sharding.jdbc.MasterSlaveDataSource;
-import com.dangdang.ddframe.rdb.sharding.jdbc.ShardingDataSource;
+import com.dangdang.ddframe.rdb.sharding.jdbc.core.datasource.MasterSlaveDataSource;
+import com.dangdang.ddframe.rdb.sharding.jdbc.core.datasource.ShardingDataSource;
 import org.junit.After;
+import org.junit.AfterClass;
 import org.junit.Before;
 
 import javax.sql.DataSource;
@@ -41,38 +42,15 @@ import java.util.Map;
 
 public abstract class AbstractShardingMasterSlaveDBUnitTest extends AbstractDBUnitTest {
     
-    private final String dataSourceName = "dataSource_%s";
+    private static boolean isShutdown;
+    
+    private static ShardingDataSource shardingDataSource;
     
     @Before
     @After
     public void reset() throws NoSuchFieldException, IllegalAccessException {
         HintManagerHolder.clear();
         MasterSlaveDataSource.resetDMLFlag();
-    }
-    
-    @Override
-    protected List<String> getSchemaFiles() {
-        return Arrays.asList(
-                "integrate/schema/masterslave/master_0.sql",
-                "integrate/schema/masterslave/master_1.sql",
-                "integrate/schema/masterslave/master_2.sql",
-                "integrate/schema/masterslave/master_3.sql",
-                "integrate/schema/masterslave/master_4.sql",
-                "integrate/schema/masterslave/master_5.sql",
-                "integrate/schema/masterslave/master_6.sql",
-                "integrate/schema/masterslave/master_7.sql",
-                "integrate/schema/masterslave/master_8.sql",
-                "integrate/schema/masterslave/master_9.sql",
-                "integrate/schema/masterslave/slave_0.sql",
-                "integrate/schema/masterslave/slave_1.sql",
-                "integrate/schema/masterslave/slave_2.sql",
-                "integrate/schema/masterslave/slave_3.sql",
-                "integrate/schema/masterslave/slave_4.sql",
-                "integrate/schema/masterslave/slave_5.sql",
-                "integrate/schema/masterslave/slave_6.sql",
-                "integrate/schema/masterslave/slave_7.sql",
-                "integrate/schema/masterslave/slave_8.sql",
-                "integrate/schema/masterslave/slave_9.sql");
     }
     
     @Override
@@ -101,7 +79,11 @@ public abstract class AbstractShardingMasterSlaveDBUnitTest extends AbstractDBUn
     }
     
     protected final ShardingDataSource getShardingDataSource() {
-        Map<String, DataSource> masterSlaveDataSourceMap = createDataSourceMap(dataSourceName);
+        if (null != shardingDataSource && !isShutdown) {
+            return shardingDataSource;
+        }
+        isShutdown = false;
+        Map<String, DataSource> masterSlaveDataSourceMap = createDataSourceMap("dataSource_%s");
         MasterSlaveDataSource masterSlaveDs0 = new MasterSlaveDataSource("ms_0", masterSlaveDataSourceMap.get("dataSource_master_0"), 
                 Collections.singletonList(masterSlaveDataSourceMap.get("dataSource_slave_0")));
         MasterSlaveDataSource masterSlaveDs1 = new MasterSlaveDataSource("ms_1", masterSlaveDataSourceMap.get("dataSource_master_1"), 
@@ -161,6 +143,14 @@ public abstract class AbstractShardingMasterSlaveDBUnitTest extends AbstractDBUn
                 .bindingTableRules(Collections.singletonList(new BindingTableRule(Arrays.asList(orderTableRule, orderItemTableRule))))
                 .databaseShardingStrategy(new DatabaseShardingStrategy("user_id", new SingleKeyModuloDatabaseShardingAlgorithm()))
                 .tableShardingStrategy(new TableShardingStrategy("order_id", new SingleKeyModuloTableShardingAlgorithm())).build();
-        return new ShardingDataSource(shardingRule);
+        shardingDataSource = new ShardingDataSource(shardingRule);
+        return shardingDataSource;
+    }
+    
+    
+    @AfterClass
+    public static void clear() {
+        isShutdown = true;
+        shardingDataSource.close();
     }
 }

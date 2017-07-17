@@ -25,6 +25,7 @@ import java.sql.ResultSet;
 import java.sql.SQLException;
 import java.sql.SQLWarning;
 import java.util.Collection;
+import java.util.LinkedList;
 
 /**
  * 数据库连接适配类.
@@ -69,18 +70,30 @@ public abstract class AbstractConnectionAdapter extends AbstractUnsupportedOpera
     
     @Override
     public final void rollback() throws SQLException {
+        Collection<SQLException> exceptions = new LinkedList<>();
         for (Connection each : getConnections()) {
-            each.rollback();
+            try {
+                each.rollback();
+            } catch (final SQLException ex) {
+                exceptions.add(ex);
+            }
         }
+        throwSQLExceptionIfNecessary(exceptions);
     }
     
     @Override
     public void close() throws SQLException {
-        for (Connection each : getConnections()) {
-            each.close();
-        }
         closed = true;
         MetricsContext.clear();
+        Collection<SQLException> exceptions = new LinkedList<>();
+        for (Connection each : getConnections()) {
+            try {
+                each.close();
+            } catch (final SQLException ex) {
+                exceptions.add(ex);
+            }
+        }
+        throwSQLExceptionIfNecessary(exceptions);
     }
     
     @Override

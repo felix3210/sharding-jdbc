@@ -21,16 +21,20 @@ import com.dangdang.ddframe.rdb.sharding.api.rule.BindingTableRule;
 import com.dangdang.ddframe.rdb.sharding.api.rule.DataNode;
 import com.dangdang.ddframe.rdb.sharding.api.rule.ShardingRule;
 import com.dangdang.ddframe.rdb.sharding.api.rule.TableRule;
+import com.dangdang.ddframe.rdb.sharding.config.common.api.config.GenerateKeyColumnConfig;
 import com.dangdang.ddframe.rdb.sharding.config.common.api.config.BindingTableRuleConfig;
 import com.dangdang.ddframe.rdb.sharding.config.common.api.config.ShardingRuleConfig;
 import com.dangdang.ddframe.rdb.sharding.config.common.api.config.StrategyConfig;
 import com.dangdang.ddframe.rdb.sharding.config.common.api.config.TableRuleConfig;
+import com.dangdang.ddframe.rdb.sharding.config.common.fixture.DecrementKeyGenerator;
+import com.dangdang.ddframe.rdb.sharding.config.common.fixture.IncrementKeyGenerator;
 import com.dangdang.ddframe.rdb.sharding.config.common.internal.fixture.MultiAlgorithm;
 import com.dangdang.ddframe.rdb.sharding.config.common.internal.fixture.SingleAlgorithm;
 import com.google.common.base.Joiner;
 import org.junit.Test;
 
 import javax.sql.DataSource;
+import java.util.Arrays;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.Map;
@@ -69,12 +73,26 @@ public final class ShardingRuleBuilderTest {
         new ShardingRuleBuilder(shardingRuleConfig).build();
     }
     
+    @Test(expected = IllegalArgumentException.class)
+    public void assertBuildFailureWhenKeyGeneratedClassNotExisted() {
+        ShardingRuleConfig shardingRuleConfig = new ShardingRuleConfig();
+        shardingRuleConfig.setDataSource(createDataSourceMap());
+        shardingRuleConfig.setDefaultDataSourceName("ds_0");
+        shardingRuleConfig.setTables(createTableRuleConfigMap());
+        shardingRuleConfig.setKeyGeneratorClass("not.existed");
+        shardingRuleConfig.setBindingTables(Collections.singletonList(createBindingTableRule("t_order", "t_order_item")));
+        shardingRuleConfig.setDefaultDatabaseStrategy(getDatabaseStrategyConfig(SingleAlgorithm.class.getName()));
+        shardingRuleConfig.setDefaultTableStrategy(getTableStrategyConfigForAlgorithmClass());
+        new ShardingRuleBuilder(shardingRuleConfig).build();
+    }
+    
     @Test
     public void assertBuildSuccess() {
         ShardingRuleConfig shardingRuleConfig = new ShardingRuleConfig();
         shardingRuleConfig.setDataSource(createDataSourceMap());
         shardingRuleConfig.setDefaultDataSourceName("ds_0");
         shardingRuleConfig.setTables(createTableRuleConfigMap());
+        shardingRuleConfig.setKeyGeneratorClass(IncrementKeyGenerator.class.getName());
         shardingRuleConfig.setBindingTables(Collections.singletonList(createBindingTableRule("t_order", "t_order_item")));
         shardingRuleConfig.setDefaultDatabaseStrategy(getDatabaseStrategyConfig(SingleAlgorithm.class.getName()));
         shardingRuleConfig.setDefaultTableStrategy(getTableStrategyConfigForAlgorithmClass());
@@ -144,6 +162,15 @@ public final class ShardingRuleBuilderTest {
         result.setDataSourceNames("ds_${0..1}");
         result.setDatabaseStrategy(getDatabaseStrategyConfig(SingleAlgorithm.class.getName()));
         result.setTableStrategy(getTableStrategyConfigForExpression());
+        Map<String, String> generateKeyColumnsMap = new HashMap<>();
+        generateKeyColumnsMap.put("order_id", null);
+        GenerateKeyColumnConfig orderIdConfig = new GenerateKeyColumnConfig();
+        orderIdConfig.setColumnName("order_id");
+        generateKeyColumnsMap.put("order_item_id", DecrementKeyGenerator.class.getName());
+        GenerateKeyColumnConfig orderItemIdConfig = new GenerateKeyColumnConfig();
+        orderItemIdConfig.setColumnName("order_item_id");
+        orderItemIdConfig.setColumnKeyGeneratorClass(DecrementKeyGenerator.class.getName());
+        result.setGenerateKeyColumns(Arrays.asList(orderIdConfig, orderItemIdConfig));
         return result;
     }
     

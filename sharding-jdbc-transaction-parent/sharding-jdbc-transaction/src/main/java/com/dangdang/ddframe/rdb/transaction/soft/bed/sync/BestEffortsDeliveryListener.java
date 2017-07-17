@@ -17,9 +17,8 @@
 
 package com.dangdang.ddframe.rdb.transaction.soft.bed.sync;
 
+import com.dangdang.ddframe.rdb.sharding.constant.SQLType;
 import com.dangdang.ddframe.rdb.sharding.executor.event.DMLExecutionEvent;
-import com.dangdang.ddframe.rdb.sharding.executor.event.DMLExecutionEventListener;
-import com.dangdang.ddframe.rdb.sharding.parser.result.router.SQLStatementType;
 import com.dangdang.ddframe.rdb.transaction.soft.api.SoftTransactionManager;
 import com.dangdang.ddframe.rdb.transaction.soft.api.config.SoftTransactionConfiguration;
 import com.dangdang.ddframe.rdb.transaction.soft.bed.BEDSoftTransaction;
@@ -43,7 +42,7 @@ import static com.dangdang.ddframe.rdb.transaction.soft.constants.SoftTransactio
  * @author zhangliang
  */
 @Slf4j
-public final class BestEffortsDeliveryListener implements DMLExecutionEventListener {
+public final class BestEffortsDeliveryListener {
     
     @Subscribe
     @AllowConcurrentEvents
@@ -56,6 +55,7 @@ public final class BestEffortsDeliveryListener implements DMLExecutionEventListe
         BEDSoftTransaction bedSoftTransaction = (BEDSoftTransaction) SoftTransactionManager.getCurrentTransaction().get();
         switch (event.getEventExecutionType()) {
             case BEFORE_EXECUTE:
+                //TODO 对于批量执行的SQL需要解析成两层列表
                 transactionLogStorage.add(new TransactionLog(event.getId(), bedSoftTransaction.getTransactionId(), bedSoftTransaction.getTransactionType(), 
                         event.getDataSource(), event.getSql(), event.getParameters(), System.currentTimeMillis(), 0));
                 return;
@@ -72,12 +72,14 @@ public final class BestEffortsDeliveryListener implements DMLExecutionEventListe
                     Connection conn = null;
                     PreparedStatement preparedStatement = null;
                     try {
-                        conn = bedSoftTransaction.getConnection().getConnection(event.getDataSource(), SQLStatementType.SELECT);
+                        conn = bedSoftTransaction.getConnection().getConnection(event.getDataSource(), SQLType.UPDATE);
                         if (!isValidConnection(conn)) {
-                            conn = bedSoftTransaction.getConnection();
+                            bedSoftTransaction.getConnection().release(conn);
+                            conn = bedSoftTransaction.getConnection().getConnection(event.getDataSource(), SQLType.UPDATE);
                             isNewConnection = true;
                         }
                         preparedStatement = conn.prepareStatement(event.getSql());
+                        //TODO 对于批量事件需要解析成两层列表
                         for (int parameterIndex = 0; parameterIndex < event.getParameters().size(); parameterIndex++) {
                             preparedStatement.setObject(parameterIndex + 1, event.getParameters().get(parameterIndex));
                         }
@@ -126,10 +128,5 @@ public final class BestEffortsDeliveryListener implements DMLExecutionEventListe
                 log.error("Connection closed error:", ex);
             }
         }
-    }
-    
-    @Override
-    public String getName() {
-        return getClass().getName();
     }
 }
